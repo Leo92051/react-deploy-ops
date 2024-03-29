@@ -1,0 +1,42 @@
+---
+name: Deploy to AWS EC2
+on:
+  push:
+    branches:
+      - master
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Install dependencies
+        run: npm install
+      - name: Build React app
+        run: npm run build
+      - name: Transfer files to EC2 instance
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: ./build/
+          target: /var/www/html/react
+      - name: Setup Directory & Permissions
+        run: >
+          ssh -i "$HOME/.ssh/id_rsa" -o StrictHostKeyChecking=no ${{
+          secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} <<'EOF'
+
+          sudo chmod 600 $HOME/.ssh/id_rsa
+
+          sudo chown -R ${{ secrets.EC2_USERNAME }} /var/www/html/react
+
+          tar -xzf /tmp/bsHHGTYRNP.tar.gz -C /var/www/html/react
+
+          sudo chown -R www-data:www-data /var/www/html/react
+
+          EOF
+      - name: Restart NGINX
+        run: ssh -i  StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{
+          secrets.EC2_HOST }} "sudo systemctl restart nginx"
